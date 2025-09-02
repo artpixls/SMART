@@ -265,8 +265,8 @@ class MainFrame(wx.Frame):
     def load_image(self, path):
         try:
             self.image_panel.load_image(path)
-            self.statusbar.SetStatusText(f"loaded image: {path}")
             self.filename = Path(self.annotator.image_filename)
+            self.statusbar.SetStatusText(f"loaded image: {self.filename}")
         except Exception as e:
             self.image_panel.reset(True)
             wx.MessageDialog(self, f"Error loading image:\n{e}",
@@ -316,7 +316,7 @@ def main(conf, filename=None):
     app = wx.App(False)
     ann = annotator.Annotator(conf)
     frame = MainFrame(ann)
-    if filename is not None:
-        frame.load_image(filename)
     frame.Show()
+    if filename is not None:
+        wx.CallAfter(lambda : frame.load_image(filename))
     app.MainLoop()
