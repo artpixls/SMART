@@ -40,6 +40,7 @@ class Annotator:
         self.image_filename = None
         self.image = None
         self.mask = None
+        self.mask_input = None
         self.masked_image = None
         self.size = -1, -1
         self.points = []
@@ -53,6 +54,7 @@ class Annotator:
             self.display_xform = None
 
     def load_image(self, filename):
+        self.reset(True)
         def doit(fn):
             img = Image.open(fn).convert('RGB')
             icc = img.info.get('icc_profile')
@@ -106,9 +108,11 @@ class Annotator:
             masks, scores, logits = self.predictor.predict(
                 point_coords=self.points,
                 point_labels=self.labels,
+                mask_input=self.mask_input,
                 multimask_output=False
             )
             self.mask = masks[0]
+            self.mask_input = logits[0, :, :][None, :, :]
             c = np.array(self.conf.mask_color, dtype=np.float32) / 255.0
             cm = np.zeros_like(self.image)[:,:] = c
             zm = np.zeros_like(self.image)
@@ -129,6 +133,7 @@ class Annotator:
         self.points = []
         self.labels = []
         self.mask = None
+        self.mask_input = None
         if clear_image:
             self.image = None
             self.masked_image = None
