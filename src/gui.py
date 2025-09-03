@@ -65,13 +65,10 @@ class ImagePanel(wx.Panel):
 
             dc.SetPen(wx.Pen(wx.Colour(0, 0, 0), width=1))
             radius = 4
-            dc.SetBrush(wx.Brush(wx.Colour(0, 255, 0), wx.BRUSHSTYLE_SOLID))
-            for (px, py) in self.annotator.positive_samples:
-                sx, sy = self.to_screen_coords(px, py)
-                dc.DrawCircle(sx, sy, radius)
-            dc.SetBrush(wx.Brush(wx.Colour(255, 0, 0), wx.BRUSHSTYLE_SOLID))
-            for (px, py) in self.annotator.negative_samples:
-                sx, sy = self.to_screen_coords(px, py)
+            colors = [wx.Colour(255, 0, 0), wx.Colour(0, 255, 0)]
+            for p, b in zip(self.annotator.points, self.annotator.labels):
+                sx, sy = self.to_screen_coords(p[0], p[1])
+                dc.SetBrush(wx.Brush(colors[b], wx.BRUSHSTYLE_SOLID))
                 dc.DrawCircle(sx, sy, radius)
 
     def _panning(self):
@@ -155,7 +152,12 @@ class ImagePanel(wx.Panel):
         self.image = self.annotator.masked_image
         self.update_bitmap()
         self.Refresh()
-        
+
+    def undo(self):
+        self.annotator.undo_last()
+        self.image = self.annotator.masked_image
+        self.update_bitmap()
+        self.Refresh()        
 
     def to_image_coords(self, x, y):
         w = self.bitmap.GetWidth() * self.zoom
@@ -179,8 +181,9 @@ class ImagePanel(wx.Panel):
 
 
 class MainFrame(wx.Frame):
-    def __init__(self, annotator):
-        super().__init__(None, title="Sammy AI mask builder", size=(1200, 800))
+    def __init__(self, conf, annotator):
+        super().__init__(None, title="SMART AI mask builder",
+                         size=conf.window_size)
 
         self.annotator = annotator
         self.filename = None
@@ -199,6 +202,9 @@ class MainFrame(wx.Frame):
         menubar.Append(file_menu, "&File")
         self.SetMenuBar(menubar)
 
+        # Toolbar
+        toolbar = self.CreateToolBar()
+
         repl = b'#ffffff' if wx.SystemSettings.GetAppearance().IsDark() \
             else b'#000000'
         d = Path(__file__).resolve().parent.parent / 'icons'
@@ -208,22 +214,30 @@ class MainFrame(wx.Frame):
                 data = f.read().replace(b'#2a7fff', repl)
                 return wx.BitmapBundle.FromSVG(data, sz)
 
-        # Toolbar
-        toolbar = self.CreateToolBar()
         tb_open = toolbar.AddTool(
-            wx.ID_OPEN, "Open", svg('folder-open.svg'))
+            wx.ID_OPEN, "Open", svg('folder-open.svg'),
+            shortHelp="Open image...")
         tb_save = toolbar.AddTool(
-            wx.ID_SAVE, "Save", svg('save.svg'))
+            wx.ID_SAVE, "Save", svg('save.svg'),
+            shortHelp="Save mask...")
         tb_reset = toolbar.AddTool(
-            wx.ID_ANY, "Reset", svg('undo-all.svg'))
+            wx.ID_ANY, "Reset", svg('undo-all.svg'),
+            shortHelp="Remove all points")
+        tb_undo = toolbar.AddTool(
+            wx.ID_ANY, "Undo", svg('undo.svg'),
+            shortHelp="Remove last added point")
         tb_zoom_in = toolbar.AddTool(
-            wx.ID_ZOOM_IN, "Zoom In", svg('magnifier-plus.svg'))
+            wx.ID_ZOOM_IN, "Zoom In", svg('magnifier-plus.svg'),
+            shortHelp="Zoom in")
         tb_zoom_out = toolbar.AddTool(
-            wx.ID_ZOOM_OUT, "Zoom Out", svg('magnifier-minus.svg'))
+            wx.ID_ZOOM_OUT, "Zoom Out", svg('magnifier-minus.svg'),
+            shortHelp="Zoom out")
         tb_zoom_1_1 = toolbar.AddTool(
-            wx.ID_ANY, "Zoom 1:1", svg('magnifier-1to1.svg'))
+            wx.ID_ANY, "Zoom 1:1", svg('magnifier-1to1.svg'),
+            shortHelp="Zoom to 100%")
         tb_zoom_fit = toolbar.AddTool(
-            wx.ID_ANY, "Zoom Fit", svg('magnifier-fit.svg'))
+            wx.ID_ANY, "Zoom Fit", svg('magnifier-fit.svg'),
+            shortHelp="Zoom to fit")
         toolbar.Realize()
 
         self.Bind(wx.EVT_TOOL, self.on_open_image, tb_open)
@@ -233,20 +247,12 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_TOOL, self.panel_zoom_fit, tb_zoom_fit)
         self.Bind(wx.EVT_TOOL, self.on_save, tb_save)
         self.Bind(wx.EVT_TOOL, self.on_reset, tb_reset)
+        self.Bind(wx.EVT_TOOL, self.on_undo, tb_undo)
 
         # Main layout
         hbox = wx.BoxSizer(wx.HORIZONTAL)
         self.image_panel = ImagePanel(self, annotator)
         hbox.Add(self.image_panel, proportion=1, flag=wx.EXPAND)
-
-        # # Sidebar
-        # sidebar = wx.Panel(self, size=(200, -1))
-        # sidebar.SetBackgroundColour(wx.Colour(230, 230, 230))
-        # sb_sizer = wx.BoxSizer(wx.VERTICAL)
-        # sb_label = wx.StaticText(sidebar, label="Sidebar")
-        # sb_sizer.Add(sb_label, flag=wx.ALL | wx.EXPAND, border=10)
-        # sidebar.SetSizer(sb_sizer)
-        # hbox.Add(sidebar, proportion=0, flag=wx.EXPAND)
 
         vbox.Add(hbox, proportion=1, flag=wx.EXPAND)
         self.SetSizer(vbox)
@@ -309,13 +315,16 @@ class MainFrame(wx.Frame):
     def on_reset(self, event):
         self.image_panel.reset()
 
+    def on_undo(self, event):
+        self.image_panel.undo()
+
 # end of class MainFrame
 
 
 def main(conf, filename=None):
     app = wx.App(False)
     ann = annotator.Annotator(conf)
-    frame = MainFrame(ann)
+    frame = MainFrame(conf, ann)
     frame.Show()
     if filename is not None:
         wx.CallAfter(lambda : frame.load_image(filename))

@@ -2,12 +2,12 @@ import dataclasses
 from typing import Literal
 from pathlib import Path
 import os
-import jstyleson as json
+import json
+from platformdirs import user_config_dir
 
 
 @dataclasses.dataclass
 class Config:
-    max_image_size: int = 1920
     device: Literal[
         "cuda",
         "cpu",
@@ -21,6 +21,7 @@ class Config:
     ] = "sam2.1_hiera_base_plus.pt"
     mask_color: tuple[int, int, int] = (70, 230, 50)
     exiftool: str = 'exiftool'
+    window_size: int = 1920, 1080
 
     def get_model_config(self):
         confmap = {
@@ -37,12 +38,22 @@ class Config:
         return str(ret)
 
     @staticmethod
-    def load(filename):
-        res = Config()
-        with open(filename) as f:
-            return dataclasses.replace(res, **json.load(f))
+    def get_config_file():
+        return os.path.join(user_config_dir(), "artpixls-SMART.json")
 
-    def save(self, filename):
+    @staticmethod
+    def load(filename=None):
+        res = Config()
+        if filename is None:
+            filename = Config.get_config_file()
+        if os.path.exists(filename):
+            with open(filename) as f:
+                res = dataclasses.replace(res, **json.load(f))
+        return res
+
+    def save(self, filename=None):
+        if filename is None:
+            filename = Config.get_config_file()
         with open(filename, 'w') as out:
             json.dump(dataclasses.asdict(self), out, indent=2, sort_keys=True)
             out.write('\n')
