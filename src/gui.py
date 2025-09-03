@@ -24,7 +24,8 @@ class ImagePanel(wx.Panel):
         self.Bind(wx.EVT_RIGHT_DOWN, self.on_right_down)
         self.Bind(wx.EVT_MOTION, self.on_motion)
         self.Bind(wx.EVT_MOUSEWHEEL, self.on_mousewheel)
-        self.SetBackgroundColour(wx.Colour(200, 200, 200))
+        self.SetBackgroundColour(
+            wx.Colour(*self.annotator.conf.background_color))
 
     def load_image(self, path):
         self.annotator.load_image(path)
