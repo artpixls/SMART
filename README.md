@@ -1,3 +1,5 @@
+![logo](icons/app-icon.png)
+
 # SMART AI mask builder
 
 SMART (Segmentation Model for ART) is a simple AI mask generator for
