@@ -1,0 +1,4 @@
+wxPython
+pillow>=11.3.0
+platformdirs
+git+https://github.com/facebookresearch/sam2.git
