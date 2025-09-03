@@ -24,6 +24,7 @@ class Config:
     exiftool: str = 'exiftool'
     window_size: int = 1200, 800
     last_dir: str = ""
+    display_icc_profile: str|None = None
 
     def get_model_config(self):
         confmap = {

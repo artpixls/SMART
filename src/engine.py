@@ -47,7 +47,11 @@ class AIMaskingEngine:
         self.points = []
         self.labels = []
         self.srgb_profile = ImageCms.createProfile('sRGB')
-        display_profile = ImageCms.get_display_profile()
+        if self.conf.display_icc_profile:
+            display_profile = ImageCms.ImageCmsProfile(
+                self.conf.display_icc_profile)
+        else:
+            display_profile = ImageCms.get_display_profile()
         if display_profile is not None:
             self.display_xform = ImageCms.buildTransform(
                 self.srgb_profile, display_profile, "RGB", "RGB")
