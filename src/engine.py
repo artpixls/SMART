@@ -24,7 +24,7 @@ def pushd(d):
     finally:
         os.chdir(old)
 
-class Annotator:
+class AIMaskingEngine:
     def __init__(self, conf):
         self.conf = conf
         sam2_checkpoint = self.conf.get_model_file()
@@ -41,7 +41,8 @@ class Annotator:
         self.image = None
         self.mask = None
         self.mask_input = None
-        self.masked_image = None
+        self.displayed_image = None
+        self.saved = True
         self.size = -1, -1
         self.points = []
         self.labels = []
@@ -70,7 +71,7 @@ class Annotator:
             self.size = img.size
             self.image = np.array(img).astype(np.float32) / 255.0
             self.mask = None
-            self.masked_image = self.to_display(self.image)
+            self.displayed_image = self.to_display(self.image)
             self.predictor.set_image(self.image)
             self.image_filename = os.path.abspath(fn)
         if self.conf.exiftool:
@@ -99,6 +100,7 @@ class Annotator:
         return self.size
 
     def add_point(self, point, is_positive):
+        self.saved = False
         self.points.append(point)
         self.labels.append(int(is_positive))
         self.predict()
@@ -127,18 +129,19 @@ class Annotator:
             ], dtype=np.float32).transpose()
             img = (desat @ self.image.reshape(-1, 3).transpose()).\
                 transpose().reshape(self.image.shape)
-            self.masked_image = self.to_display(np.fmin(img + m * 0.5, 1.0))
+            self.displayed_image = self.to_display(np.fmin(img + m * 0.5, 1.0))
 
     def reset(self, clear_image):
+        self.saved = True
         self.points = []
         self.labels = []
         self.mask = None
         self.mask_input = None
         if clear_image:
             self.image = None
-            self.masked_image = None
+            self.displayed_image = None
         else:
-            self.masked_image = self.to_display(self.image)
+            self.displayed_image = self.to_display(self.image)
 
     def to_display(self, img):
         ret = (img * 255).astype(np.uint8)
@@ -152,6 +155,7 @@ class Annotator:
         if self.points:
             self.points.pop()
             self.labels.pop()
+            self.saved = not self.points
             self.predict()
 
     def save_mask(self, filename):
@@ -177,5 +181,6 @@ class Annotator:
                 '-overwrite_original',
                 '-Sammy_mask_data=' + json.dumps(data),
                 filename], capture_output=True)
+        self.saved = True
 
-# end of class Annotator
+# end of class AIMaskingEngine

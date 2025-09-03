@@ -4,10 +4,10 @@ from pathlib import Path
 from PIL import Image
 
 import config
-import annotator
+import engine
 
 class ImagePanel(wx.Panel):
-    def __init__(self, parent, annotator):
+    def __init__(self, parent, engine):
         super().__init__(parent)
         self.image = None
         self.bitmap = None
@@ -16,7 +16,7 @@ class ImagePanel(wx.Panel):
         self.offset_y = 0
         self.dragging = False
         self.drag_start = (0, 0)
-        self.annotator = annotator
+        self.engine = engine
 
         self.Bind(wx.EVT_PAINT, self.on_paint)
         self.Bind(wx.EVT_LEFT_DOWN, self.on_left_down)
@@ -25,11 +25,11 @@ class ImagePanel(wx.Panel):
         self.Bind(wx.EVT_MOTION, self.on_motion)
         self.Bind(wx.EVT_MOUSEWHEEL, self.on_mousewheel)
         self.SetBackgroundColour(
-            wx.Colour(*self.annotator.conf.background_color))
+            wx.Colour(*self.engine.conf.background_color))
 
     def load_image(self, path):
-        self.annotator.load_image(path)
-        self.image = self.annotator.masked_image
+        self.engine.load_image(path)
+        self.image = self.engine.displayed_image
         self.update_bitmap()
         self.center_image()
         self.zoom_fit()
@@ -67,7 +67,7 @@ class ImagePanel(wx.Panel):
             dc.SetPen(wx.Pen(wx.Colour(0, 0, 0), width=1))
             radius = 4
             colors = [wx.Colour(255, 0, 0), wx.Colour(0, 255, 0)]
-            for p, b in zip(self.annotator.points, self.annotator.labels):
+            for p, b in zip(self.engine.points, self.engine.labels):
                 sx, sy = self.to_screen_coords(p[0], p[1])
                 dc.SetBrush(wx.Brush(colors[b], wx.BRUSHSTYLE_SOLID))
                 dc.DrawCircle(sx, sy, radius)
@@ -82,9 +82,9 @@ class ImagePanel(wx.Panel):
                 self.drag_start = (event.GetX(), event.GetY())
                 self.CaptureMouse()
             else:
-                self.annotator.add_point(
+                self.engine.add_point(
                     self.to_image_coords(event.GetX(), event.GetY()), True)
-                self.image = self.annotator.masked_image
+                self.image = self.engine.displayed_image
                 self.update_bitmap()
                 self.Refresh()
 
@@ -98,9 +98,9 @@ class ImagePanel(wx.Panel):
 
     def on_right_down(self, event):
         if self.image is not None and not self._panning():
-            self.annotator.add_point(
+            self.engine.add_point(
                 self.to_image_coords(event.GetX(), event.GetY()), False)
-            self.image = self.annotator.masked_image
+            self.image = self.engine.displayed_image
             self.update_bitmap()
             self.Refresh()
             
@@ -149,21 +149,21 @@ class ImagePanel(wx.Panel):
             self.Refresh()
 
     def reset(self, clear_image=False):
-        self.annotator.reset(clear_image)
-        self.image = self.annotator.masked_image
+        self.engine.reset(clear_image)
+        self.image = self.engine.displayed_image
         self.update_bitmap()
         self.Refresh()
 
     def undo(self):
-        self.annotator.undo_last()
-        self.image = self.annotator.masked_image
+        self.engine.undo_last()
+        self.image = self.engine.displayed_image
         self.update_bitmap()
         self.Refresh()        
 
     def to_image_coords(self, x, y):
         w = self.bitmap.GetWidth() * self.zoom
         h = self.bitmap.GetHeight() * self.zoom
-        real_w, real_h = self.annotator.get_size()
+        real_w, real_h = self.engine.get_size()
         scale_w = real_w / w
         scale_h = real_h / h
         return (int(round((x - self.offset_x) * scale_w)),
@@ -172,7 +172,7 @@ class ImagePanel(wx.Panel):
     def to_screen_coords(self, x, y):
         w = self.bitmap.GetWidth() * self.zoom
         h = self.bitmap.GetHeight() * self.zoom
-        real_w, real_h = self.annotator.get_size()
+        real_w, real_h = self.engine.get_size()
         scale_w = real_w / w
         scale_h = real_h / h
         return (int(round(x / scale_w + self.offset_x)),
@@ -182,27 +182,36 @@ class ImagePanel(wx.Panel):
 
 
 class MainFrame(wx.Frame):
-    def __init__(self, conf, annotator):
+    def __init__(self, conf, engine):
         super().__init__(None, title="SMART AI mask builder",
                          size=conf.window_size)
 
-        self.annotator = annotator
+        icon_path = \
+            Path(__file__).resolve().parent.parent / 'icons' / 'app-icon.png'
+        if icon_path.exists():
+            icon = wx.Icon(str(icon_path), wx.BITMAP_TYPE_PNG)
+            self.SetIcon(icon)
+
+        self.engine = engine
         self.filename = None
 
         self.statusbar = self.CreateStatusBar()
-        self.statusbar.SetFieldsCount(2, [-2, -1])
+        msg = " | shift+left click: add positive point; " \
+            "shift+right click: add negative point   "
+        msg_size = self.statusbar.GetTextExtent(msg)
+        self.statusbar.SetFieldsCount(2, [-1, msg_size.width])
         self.statusbar.SetStatusText("Ready")
-        self.statusbar.SetStatusText(
-            "shift+left click: add positive point; "
-            "shift+right click: add negative point", 1)
-        
+        self.statusbar.SetStatusText(msg, 1)
+
         vbox = wx.BoxSizer(wx.VERTICAL)
 
         # Menu Bar
         menubar = wx.MenuBar()
         file_menu = wx.Menu()
-        open_item = file_menu.Append(wx.ID_OPEN, "&Open\tCtrl+O")
-        self.Bind(wx.EVT_MENU, self.on_open_image, open_item)
+        file_menu.Append(wx.ID_OPEN, "&Open image\tCtrl+O")
+        self.Bind(wx.EVT_MENU, self.on_open_image, id=wx.ID_OPEN)
+        file_menu.Append(wx.ID_SAVE, "&Save mask\tCtrl+S")
+        self.Bind(wx.EVT_MENU, self.on_save, id=wx.ID_SAVE)
         file_menu.Append(wx.ID_EXIT, "E&xit\tCtrl+Q")
         menubar.Append(file_menu, "&File")
         self.SetMenuBar(menubar)
@@ -245,6 +254,29 @@ class MainFrame(wx.Frame):
             shortHelp="Zoom to fit")
         toolbar.Realize()
 
+        accel_entries = [
+            wx.AcceleratorEntry(wx.ACCEL_CTRL, ord('o'), tb_open.GetId()),
+            wx.AcceleratorEntry(wx.ACCEL_CTRL, ord('s'), tb_save.GetId()),
+            wx.AcceleratorEntry(wx.ACCEL_CTRL, ord('z'), tb_undo.GetId()),
+            wx.AcceleratorEntry(wx.ACCEL_CTRL, ord('r'), tb_reset.GetId()),
+            wx.AcceleratorEntry(wx.ACCEL_CTRL, ord('+'), tb_zoom_in.GetId()),
+            wx.AcceleratorEntry(wx.ACCEL_CTRL, ord('='), tb_zoom_in.GetId()),
+            wx.AcceleratorEntry(wx.ACCEL_CTRL, ord('-'), tb_zoom_out.GetId()),
+            wx.AcceleratorEntry(wx.ACCEL_CTRL, ord('1'), tb_zoom_1_1.GetId()),
+            wx.AcceleratorEntry(wx.ACCEL_CTRL, ord('f'), tb_zoom_fit.GetId()),
+        ]
+        accel_table = wx.AcceleratorTable(accel_entries)
+        self.SetAcceleratorTable(accel_table)
+
+        self.Bind(wx.EVT_MENU, self.on_open_image, tb_open)
+        self.Bind(wx.EVT_MENU, self.on_save, tb_save)
+        self.Bind(wx.EVT_MENU, self.on_reset, tb_reset)
+        self.Bind(wx.EVT_MENU, self.on_undo, tb_undo)
+        self.Bind(wx.EVT_MENU, self.panel_zoom_in, tb_zoom_in)
+        self.Bind(wx.EVT_MENU, self.panel_zoom_out, tb_zoom_out)
+        self.Bind(wx.EVT_MENU, self.panel_zoom_1_1, tb_zoom_1_1)
+        self.Bind(wx.EVT_MENU, self.panel_zoom_fit, tb_zoom_fit)
+
         self.Bind(wx.EVT_TOOL, self.on_open_image, tb_open)
         self.Bind(wx.EVT_TOOL, self.panel_zoom_in, tb_zoom_in)
         self.Bind(wx.EVT_TOOL, self.panel_zoom_out, tb_zoom_out)
@@ -254,34 +286,54 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_TOOL, self.on_reset, tb_reset)
         self.Bind(wx.EVT_TOOL, self.on_undo, tb_undo)
 
-        self.Bind(wx.EVT_SIZE, self.on_size)
+        self.Bind(wx.EVT_MENU, self.on_close, id=wx.ID_EXIT)
+        self.Bind(wx.EVT_CLOSE, self.on_close)
 
-        # Main layout
         hbox = wx.BoxSizer(wx.HORIZONTAL)
-        self.image_panel = ImagePanel(self, annotator)
+        self.image_panel = ImagePanel(self, engine)
         hbox.Add(self.image_panel, proportion=1, flag=wx.EXPAND)
 
         vbox.Add(hbox, proportion=1, flag=wx.EXPAND)
         self.SetSizer(vbox)
         self.Raise()
 
+    def check_save(self):
+        if self.engine.saved:
+            return True
+        with wx.MessageDialog(self,
+                              "You have unsaved changes. "
+                              "Do you want to save the mask before continuing?",
+                              "Unsaved Changes",
+                              wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION) as dlg:
+            result = dlg.ShowModal()
+        if result == wx.ID_YES:
+            return self.save_mask()
+        elif result == wx.ID_NO:
+            return True
+        else:
+            return False
+
     def on_open_image(self, event):
+        if not self.check_save():
+            return
         with wx.FileDialog(
                 self, "Open Image file",
                 wildcard="Image files (*.png;*.jpg;*.jpeg;*.tif;*.tiff)" \
                 "|*.png;*.jpg;*.jpeg;*.tif;*.tiff",
                 style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
-                defaultDir=self.annotator.conf.last_dir) as fd:
+                defaultDir=self.engine.conf.last_dir) as fd:
             if fd.ShowModal() == wx.ID_CANCEL:
                 return
             self.load_image(fd.GetPath())
 
     def load_image(self, path):
+        if not self.check_save():
+            return
         try:
             self.image_panel.load_image(path)
-            self.filename = Path(self.annotator.image_filename)
+            self.filename = Path(self.engine.image_filename)
             self.statusbar.SetStatusText(f"loaded image: {self.filename}")
-            self.annotator.conf.last_dir = os.path.dirname(path)
+            self.engine.conf.last_dir = os.path.dirname(path)
         except Exception as e:
             self.image_panel.reset(True)
             wx.MessageDialog(self, f"Error loading image:\n{e}",
@@ -300,10 +352,10 @@ class MainFrame(wx.Frame):
     def panel_zoom_fit(self, event):
         self.image_panel.zoom_fit()
 
-    def on_save(self, event):
+    def save_mask(self):
         if self.filename is None:
             self.statusbar.SetStatusText("No mask to save")
-            return
+            return True
         dd = str(self.filename.parent)
         df = str(self.filename.stem + "_mask.png")
         with wx.FileDialog(self, "Save Mask",
@@ -311,15 +363,20 @@ class MainFrame(wx.Frame):
                            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
                            defaultDir=dd, defaultFile=df) as fd:
             if fd.ShowModal() == wx.ID_CANCEL:
-                return
+                return True
             path = fd.GetPath()
             try:
-                self.annotator.save_mask(path)
+                self.engine.save_mask(path)
                 self.statusbar.SetStatusText(f"mask saved to {path}")
+                return True
             except Exception as e:
                 wx.MessageDialog(self, f"Error saving mask:\n{e}",
                                  "Save Error",
                                  wx.OK | wx.ICON_ERROR).ShowModal()
+                return False
+
+    def on_save(self, event):
+        self.save_mask()
 
     def on_reset(self, event):
         self.image_panel.reset()
@@ -327,29 +384,40 @@ class MainFrame(wx.Frame):
     def on_undo(self, event):
         self.image_panel.undo()
 
-    def on_size(self, event):
-        size = self.GetSize()
-        cw, ch = self.annotator.conf.window_size
-        if abs(size.width - cw) >= 5:
-            cw = size.width
-        if abs(size.height - ch) >= 5:
-            ch = size.height
-        self.annotator.conf.window_size = cw, ch
+    def on_close(self, event):
+        if not self.check_save():
+            return
+        def update(cur, prev):
+            a, b = prev
+            na, nb = cur
+            if abs(a - na) >= 5:
+                a = na
+            if abs(b - nb) >= 5:
+                b = nb
+            return (a, b)
+        self.engine.conf.window_size = \
+            update(self.GetSize(), self.engine.conf.window_size)
+        self.engine.conf.save()
         event.Skip()
 
 # end of class MainFrame
 
 
 def main(conf, filename=None):
-    class MyApp(wx.App):
-        def OnExit(self):
-            conf.save()
-            return super().OnExit()
-        
-    ann = annotator.Annotator(conf)
-    app = MyApp(False)
-    frame = MainFrame(conf, ann)
+    app = wx.PyApp()
+    frame = MainFrame(conf, engine.AIMaskingEngine(conf))
     frame.Show()
+    def fixgeom():
+        x, y = frame.GetPosition()
+        w, h = frame.GetSize()
+        r = wx.GetClientDisplayRect()
+        w = min(w, r.GetWidth())
+        h = min(h, r.GetHeight())
+        x = max(x, r.GetX())
+        y = max(y, r.GetY())
+        frame.SetPosition((x, y))
+        frame.SetSize((w, h))
+    wx.CallAfter(fixgeom)
     if filename is not None:
         wx.CallAfter(lambda : frame.load_image(filename))
     app.MainLoop()
