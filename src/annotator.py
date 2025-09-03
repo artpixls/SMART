@@ -44,7 +44,13 @@ class Annotator:
         self.size = -1, -1
         self.points = []
         self.labels = []
-        self.srgb = ImageCms.createProfile('sRGB')
+        self.srgb_profile = ImageCms.createProfile('sRGB')
+        display_profile = ImageCms.get_display_profile()
+        if display_profile is not None:
+            self.display_xform = ImageCms.buildTransform(
+                self.srgb_profile, display_profile, "RGB", "RGB")
+        else:
+            self.display_xform = None
 
     def load_image(self, filename):
         def doit(fn):
@@ -54,7 +60,7 @@ class Annotator:
                 try:
                     iprof = ImageCms.ImageCmsProfile(io.BytesIO(icc))
                     xform = ImageCms.buildTransform(
-                        iprof, self.srgb, "RGB", "RGB")
+                        iprof, self.srgb_profile, "RGB", "RGB")
                     ImageCms.applyTransform(img, xform, True)
                 except:
                     import traceback
@@ -62,7 +68,7 @@ class Annotator:
             self.size = img.size
             self.image = np.array(img).astype(np.float32) / 255.0
             self.mask = None
-            self.masked_image = (self.image * 255).astype(np.uint8)
+            self.masked_image = self.to_display(self.image)
             self.predictor.set_image(self.image)
             self.image_filename = os.path.abspath(fn)
         if self.conf.exiftool:
@@ -117,9 +123,7 @@ class Annotator:
             ], dtype=np.float32).transpose()
             img = (desat @ self.image.reshape(-1, 3).transpose()).\
                 transpose().reshape(self.image.shape)
-            self.masked_image = \
-                (np.fmin(img + m * 0.5, 1.0) * 255.0). \
-                astype(np.uint8)
+            self.masked_image = self.to_display(np.fmin(img + m * 0.5, 1.0))
 
     def reset(self, clear_image):
         self.points = []
@@ -129,8 +133,16 @@ class Annotator:
             self.image = None
             self.masked_image = None
         else:
-            self.masked_image = (self.image * 255).astype(np.uint8)
+            self.masked_image = self.to_display(self.image)
 
+    def to_display(self, img):
+        ret = (img * 255).astype(np.uint8)
+        if self.display_xform is not None:
+            src = Image.fromarray(ret)
+            ImageCms.applyTransform(src, self.display_xform, True)
+            ret = np.array(src)
+        return ret
+            
     def undo_last(self):
         if self.points:
             self.points.pop()
