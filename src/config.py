@@ -21,7 +21,8 @@ class Config:
     ] = "sam2.1_hiera_base_plus.pt"
     mask_color: tuple[int, int, int] = (70, 230, 50)
     exiftool: str = 'exiftool'
-    window_size: int = 1920, 1080
+    window_size: int = 1200, 800
+    last_dir: str = ""
 
     def get_model_config(self):
         confmap = {

@@ -189,7 +189,11 @@ class MainFrame(wx.Frame):
         self.filename = None
 
         self.statusbar = self.CreateStatusBar()
+        self.statusbar.SetFieldsCount(2, [-2, -1])
         self.statusbar.SetStatusText("Ready")
+        self.statusbar.SetStatusText(
+            "shift+left click: add positive point; "
+            "shift+right click: add negative point", 1)
         
         vbox = wx.BoxSizer(wx.VERTICAL)
 
@@ -249,6 +253,8 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_TOOL, self.on_reset, tb_reset)
         self.Bind(wx.EVT_TOOL, self.on_undo, tb_undo)
 
+        self.Bind(wx.EVT_SIZE, self.on_size)
+
         # Main layout
         hbox = wx.BoxSizer(wx.HORIZONTAL)
         self.image_panel = ImagePanel(self, annotator)
@@ -263,7 +269,8 @@ class MainFrame(wx.Frame):
                 self, "Open Image file",
                 wildcard="Image files (*.png;*.jpg;*.jpeg;*.tif;*.tiff)" \
                 "|*.png;*.jpg;*.jpeg;*.tif;*.tiff",
-                style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fd:
+                style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+                defaultDir=self.annotator.conf.last_dir) as fd:
             if fd.ShowModal() == wx.ID_CANCEL:
                 return
             self.load_image(fd.GetPath())
@@ -273,6 +280,7 @@ class MainFrame(wx.Frame):
             self.image_panel.load_image(path)
             self.filename = Path(self.annotator.image_filename)
             self.statusbar.SetStatusText(f"loaded image: {self.filename}")
+            self.annotator.conf.last_dir = os.path.dirname(path)
         except Exception as e:
             self.image_panel.reset(True)
             wx.MessageDialog(self, f"Error loading image:\n{e}",
@@ -318,12 +326,27 @@ class MainFrame(wx.Frame):
     def on_undo(self, event):
         self.image_panel.undo()
 
+    def on_size(self, event):
+        size = self.GetSize()
+        cw, ch = self.annotator.conf.window_size
+        if abs(size.width - cw) >= 5:
+            cw = size.width
+        if abs(size.height - ch) >= 5:
+            ch = size.height
+        self.annotator.conf.window_size = cw, ch
+        event.Skip()
+
 # end of class MainFrame
 
 
 def main(conf, filename=None):
-    app = wx.App(False)
+    class MyApp(wx.App):
+        def OnExit(self):
+            conf.save()
+            return super().OnExit()
+        
     ann = annotator.Annotator(conf)
+    app = MyApp(False)
     frame = MainFrame(conf, ann)
     frame.Show()
     if filename is not None:
