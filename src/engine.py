@@ -4,6 +4,7 @@ import os
 import json
 from contextlib import contextmanager
 import subprocess
+import hashlib
 
 import numpy as np
 from PIL import Image, ImageCms
@@ -23,6 +24,12 @@ def pushd(d):
         yield
     finally:
         os.chdir(old)
+
+
+def checksum(filename):
+    with open(filename, 'rb') as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
 
 class AIMaskingEngine:
     def __init__(self, conf):
@@ -81,16 +88,18 @@ class AIMaskingEngine:
         if self.conf.exiftool:
             try:
                 res = subprocess.run(
-                    [self.conf.exiftool, '-json', '-Sammy_mask_data', filename],
+                    [self.conf.exiftool, '-json', '-Smart_mask_data', filename],
                     encoding='utf-8', capture_output=True, check=True)
                 md = json.loads(res.stdout)[0]
-                info = json.loads(md['Sammy_mask_data'])
+                info = json.loads(md['Smart_mask_data'])
                 if info is not None and isinstance(info, dict):
                     fn = info.get('image', '')
+                    cs = info.get('sha256sum')
                     ps = info.get('points')
                     ls = info.get('labels')
-                    if os.path.exists(fn) and ps is not None \
-                       and ls is not None and len(ps) == len(ls):
+                    if os.path.exists(fn) and cs is not None \
+                       and ps is not None and ls is not None \
+                       and len(ps) == len(ls) and checksum(fn) == cs:
                         doit(fn)
                         self.points = ps
                         self.labels = ls
@@ -173,6 +182,7 @@ class AIMaskingEngine:
         img.save(filename)
         data = {
             'image' : self.image_filename,
+            'sha256sum' : checksum(self.image_filename),
             'points' : self.points,
             'labels' : self.labels,
         }
@@ -183,7 +193,7 @@ class AIMaskingEngine:
                 os.path.join(os.path.dirname(__file__),
                              '../data/exiftool.config'),
                 '-overwrite_original',
-                '-Sammy_mask_data=' + json.dumps(data),
+                '-Smart_mask_data=' + json.dumps(data),
                 filename], capture_output=True)
         self.saved = True
 
