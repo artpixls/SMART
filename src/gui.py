@@ -399,20 +399,36 @@ class MainFrame(wx.Frame):
 
 def main(conf, filename=None):
     app = wx.PyApp() if wx.Platform == '__WXMAC__' else wx.App()
-    frame = MainFrame(conf, engine.AIMaskingEngine(conf))
-    def fixgeom():
-        x, y = frame.GetPosition()
-        w, h = frame.GetSize()
-        r = wx.GetClientDisplayRect()
-        w = min(w, r.GetWidth())
-        h = min(h, r.GetHeight())
-        x = max(x, r.GetX())
-        y = max(y, r.GetY())
-        frame.SetPosition((x, y))
-        frame.SetSize((w, h))
-        frame.Raise()
-        frame.Show()
-    wx.CallAfter(fixgeom)
-    if filename is not None:
-        wx.CallAfter(lambda : frame.load_image(filename))
-    app.MainLoop()
+    fn = config.Config.get_config_file()
+    if not os.path.exists(fn):
+        conf.save()
+        wx.MessageDialog(None, f"Configuration file created in:\n{fn}\n"
+                         "Please adjust the settings to your "
+                         "environment and run again",
+                         "Initial configuration", wx.OK).ShowModal()
+    else:
+        try:
+            frame = MainFrame(conf, engine.AIMaskingEngine(conf))
+            def fixgeom():
+                x, y = frame.GetPosition()
+                w, h = frame.GetSize()
+                r = wx.GetClientDisplayRect()
+                w = min(w, r.GetWidth())
+                h = min(h, r.GetHeight())
+                x = max(x, r.GetX())
+                y = max(y, r.GetY())
+                frame.SetPosition((x, y))
+                frame.SetSize((w, h))
+                frame.Raise()
+                frame.Show()
+            wx.CallAfter(fixgeom)
+            if filename is not None:
+                wx.CallAfter(lambda : frame.load_image(filename))
+            app.MainLoop()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            wx.MessageDialog(None, f"Fatal error:\n{e}\n"
+                             f"Please check your configuration file in {fn}",
+                             "Error",
+                             wx.OK | wx.ICON_ERROR).ShowModal()

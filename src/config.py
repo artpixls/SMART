@@ -33,7 +33,7 @@ class Config:
             "sam2.1_hiera_base_plus.pt": "sam2.1_hiera_b+.yaml",
             "sam2.1_hiera_large.pt": "sam2.1_hiera_l.yaml",
         }
-        name = confmap[os.path.basename(self.model)]
+        name = confmap.get(os.path.basename(self.model))
         return name
 
     def get_model_file(self):
