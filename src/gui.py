@@ -196,7 +196,7 @@ class MainFrame(wx.Frame):
         self.filename = None
 
         self.statusbar = self.CreateStatusBar()
-        msg = " | shift+left click: add positive point; " \
+        msg = "shift+left click: add positive point; " \
             "shift+right click: add negative point   "
         msg_size = self.statusbar.GetTextExtent(msg)
         self.statusbar.SetFieldsCount(2, [-1, msg_size.width])
@@ -404,9 +404,8 @@ class MainFrame(wx.Frame):
 
 
 def main(conf, filename=None):
-    app = wx.PyApp()
+    app = wx.PyApp() if wx.Platform == '__WXMAC__' else wx.App()
     frame = MainFrame(conf, engine.AIMaskingEngine(conf))
-    frame.Show()
     def fixgeom():
         x, y = frame.GetPosition()
         w, h = frame.GetSize()
@@ -417,6 +416,8 @@ def main(conf, filename=None):
         y = max(y, r.GetY())
         frame.SetPosition((x, y))
         frame.SetSize((w, h))
+        frame.Raise()
+        frame.Show()
     wx.CallAfter(fixgeom)
     if filename is not None:
         wx.CallAfter(lambda : frame.load_image(filename))
