@@ -9,11 +9,7 @@ version = '0.1'
 
 @dataclasses.dataclass
 class Config:
-    device: Literal[
-        "cuda",
-        "cpu",
-        "mps"
-    ] = "cpu"
+    device: str = "cpu"
     model: Literal[
         "sam2.1_hiera_tiny.pt",
         "sam2.1_hiera_small.pt",
@@ -22,7 +18,7 @@ class Config:
     ] = "sam2.1_hiera_base_plus.pt"
     mask_color: tuple[int, int, int] = (70, 230, 50)
     background_color: tuple[int, int, int] = (127, 127, 127)
-    exiftool: str = 'exiftool'
+    exiftool: str = "exiftool"
     window_size: int = 1200, 800
     last_dir: str = ""
     display_icc_profile: str|None = None
