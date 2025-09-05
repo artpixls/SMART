@@ -183,7 +183,8 @@ class ImagePanel(wx.Panel):
 
 class MainFrame(wx.Frame):
     def __init__(self, conf, engine):
-        super().__init__(None, title="SMART AI mask builder",
+        super().__init__(None, title="SMART AI mask builder - v" +
+                         config.version,
                          size=conf.window_size)
 
         icon_path = \

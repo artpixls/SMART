@@ -5,6 +5,7 @@ import os
 import json
 from platformdirs import user_config_dir
 
+version = '0.1'
 
 @dataclasses.dataclass
 class Config:
