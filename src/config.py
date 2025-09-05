@@ -12,7 +12,7 @@ class Config:
         "cuda",
         "cpu",
         "mps"
-    ] = "mps"
+    ] = "cpu"
     model: Literal[
         "sam2.1_hiera_tiny.pt",
         "sam2.1_hiera_small.pt",

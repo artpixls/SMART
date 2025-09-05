@@ -206,15 +206,9 @@ class MainFrame(wx.Frame):
         vbox = wx.BoxSizer(wx.VERTICAL)
 
         # Menu Bar
-        menubar = wx.MenuBar()
-        file_menu = wx.Menu()
-        file_menu.Append(wx.ID_OPEN, "&Open image\tCtrl+O")
-        self.Bind(wx.EVT_MENU, self.on_open_image, id=wx.ID_OPEN)
-        file_menu.Append(wx.ID_SAVE, "&Save mask\tCtrl+S")
-        self.Bind(wx.EVT_MENU, self.on_save, id=wx.ID_SAVE)
-        file_menu.Append(wx.ID_EXIT, "E&xit\tCtrl+Q")
-        menubar.Append(file_menu, "&File")
-        self.SetMenuBar(menubar)
+        if wx.Platform == '__WXMAC__':
+            menubar = wx.MenuBar()
+            self.SetMenuBar(menubar)
 
         # Toolbar
         toolbar = self.CreateToolBar()
