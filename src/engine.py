@@ -2,7 +2,6 @@ from pathlib import Path
 import io
 import os
 import json
-from contextlib import contextmanager
 import subprocess
 import hashlib
 
@@ -16,16 +15,6 @@ if GlobalHydra.instance().is_initialized():
     GlobalHydra.instance().clear()
 
 
-@contextmanager
-def pushd(d):
-    old = os.getcwd()
-    try:
-        os.chdir(d)
-        yield
-    finally:
-        os.chdir(old)
-
-
 def checksum(filename):
     with open(filename, 'rb') as f:
         return hashlib.sha256(f.read()).hexdigest()
@@ -35,14 +24,13 @@ class AIMaskingEngine:
     def __init__(self, conf):
         self.conf = conf
         sam2_checkpoint = self.conf.get_model_file()
-        model_cfg = self.conf.get_model_config()
-        with pushd(os.path.dirname(__file__)):
-            with hydra.initialize(version_base=None,
-                                  config_path="../data"):
-                self.sam2_model = build_sam2(model_cfg,
-                                             sam2_checkpoint,
-                                             device=self.conf.device)
-                self.sam2_model.eval()
+        model_cfg_dir, model_cfg = self.conf.get_model_config()
+        with hydra.initialize(version_base=None,
+                              config_path=model_cfg_dir):
+            self.sam2_model = build_sam2(model_cfg,
+                                         sam2_checkpoint,
+                                         device=self.conf.device)
+            self.sam2_model.eval()
         self.predictor = SAM2ImagePredictor(self.sam2_model)
         self.image_filename = None
         self.image = None
