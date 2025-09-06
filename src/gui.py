@@ -217,7 +217,7 @@ class MainFrame(wx.Frame):
         repl = b'#ffffff' if wx.SystemSettings.GetAppearance().IsDark() \
             else b'#000000'
         d = Path(__file__).resolve().parent.parent / 'icons'
-        sz = wx.Size(16, 16)
+        sz = wx.Size(32, 32)
         def svg(pth):
             with open(d / pth, 'rb') as f:
                 data = f.read().replace(b'#2a7fff', repl)
