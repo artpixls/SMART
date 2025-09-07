@@ -213,9 +213,9 @@ class MainFrame(wx.Frame):
 
         # Toolbar
         toolbar = self.CreateToolBar()
-
-        repl = b'#ffffff' if wx.SystemSettings.GetAppearance().IsDark() \
-            else b'#000000'
+        bg = toolbar.GetBackgroundColour()
+        l = bg[0]/255.0 * 0.213 + bg[1]/255.0 * 0.715 + bg[2]/255.0 * 0.072
+        repl = b'#ffffff' if l < 0.5 else b'#000000'
         d = Path(__file__).resolve().parent.parent / 'icons'
         sz = wx.Size(32, 32)
         def svg(pth):
